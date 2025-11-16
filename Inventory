@@ -1,0 +1,159 @@
+#include<iostream>
+#include<string>
+#include<unordered_map>
+using namespace std;
+
+/*
+Functional requirements
+1. The system will manage multiple products across different warehouses.
+2. Users can add, remove, and transfer inventory items.
+3. The system tracks stock levels and alerts on low inventory.
+4. Reports can be generated for inventory analysis.
+5. The system should be scalable to handle businesses of different sizes.
+
+*/
+
+enum ProductCategory{FOOD,COSMETICS};
+
+class Observer{
+  public:
+  virtual void notify(Product* product)=0;
+};
+
+
+class Observable{
+    public:
+    virtual void addObserver(Observer *observer)=0;
+    virtual void notifyObservers()=0;
+};
+
+class Supplier:public Observer{
+    string name;
+    string email;
+    
+    void notify(Product* product){
+        cout<<"Send email: "<<email<<endl;
+        cout<<"Quantity of this product "<<product->name<<"is less than the threshold";
+    }
+
+};
+
+class Product{
+    public:
+    string name;
+    ProductCategory category;
+    int price;
+
+};
+
+class Food:public Product{
+   string expiry_date;
+   string ingredients;
+   public:
+   Food(string name,ProductCategory category,int price):Product(name,category,price){};
+
+};
+
+class Cosmetic:public Product{
+    string expiry_date;
+    string ingredients;
+    string brand;
+    public:
+    Cosmetic(string name, ProductCategory category, int price) : Product(name,category,price){};
+};
+
+class ProductFactory
+{
+    Product* createProduct(ProductCategory category, int  price,string name)
+    {
+        switch (category)
+        {
+        case FOOD:
+            return new Food(name, ProductCategory::FOOD,price);
+        case COSMETICS:
+            return new Cosmetic (name,ProductCategory::COSMETICS,price);
+        }
+    }
+};
+
+class Warehouse
+{
+    public:
+    unordered_map<string,int> stocks;
+    string address;
+    string name;
+    int id;
+    mutex mtx;
+
+    int getAvailableQuantity(string product_id){
+        unique_lock<mutex> ul(mtx);
+        if (stocks.find(product_id) == stocks.end())
+        {
+            return stocks[product_id];
+        }
+
+       return 0;
+    }
+
+    void addProduct(string product_id,int quantity){
+       unique_lock<mutex>ul(mtx);
+       if(stocks.find(product_id)!=stocks.end()){
+          stocks[product_id]+=quantity;
+       }
+       else{
+         stocks[product_id]=quantity;
+       }
+    }
+    bool removeProduct(string product_id,int quantity){
+        unique_lock<mutex> ul(mtx);
+        if(getAvailableQuantity(product_id)>=quantity){
+            stocks[product_id] -= quantity;
+        }
+    }
+};
+
+class InventoryManager:public Observable{
+    unordered_map<string,Warehouse*>warehouses;
+    vector<Observer*>observers;
+    int threshold=20;
+
+    void addObserver(Observer* observer){
+        observers.push_back(observer);
+    }
+
+    void notifyObservers(Product* product){
+        for(auto ob:observers){
+            ob->notify(product);
+        }
+    }
+
+    void addWarehouse(Warehouse *warehouse){
+      warehouses[warehouse->name]=warehouse;
+    }
+
+    void removeWarehouse(Warehouse* warehouse){
+       warehouses.erase(warehouse->name);
+    }
+
+    void addProduct(Warehouse* warehouse,int quantity,Product* product){
+       warehouse->addProduct(product->name,quantity);
+    }
+
+    bool removeProduct(Product* product,int quantity){
+        string product_id=product->name;
+       for(auto warehouse:warehouses){
+          if(warehouse.second->getAvailableQuantity(product_id)>quantity){
+             if(warehouse.second->removeProduct(product_id,quantity)){
+                 break;
+             }
+            
+          }
+        
+       }
+    }
+
+};
+
+int main(){
+
+}
